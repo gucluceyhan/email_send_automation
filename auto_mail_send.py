@@ -8,9 +8,12 @@ import os
 
 # SMTP sunucu ayarları
 smtp_sunucu = 'smtp.example.com'
-smtp_port = 587
+smtp_port = 587  # veya 465
 kullanici_adi = 'email@example.com'
 sifre = 'parolanız'
+
+# Konu başlığını tanımlayın
+konu_basligi = 'Özel Teklifimiz'
 
 # Script'in bulunduğu dizini alın
 script_dizini = os.path.dirname(os.path.abspath(__file__))
@@ -30,9 +33,6 @@ df = pd.read_excel(excel_dosyasi)
 # Sütun isimlerini temizleyin
 df.columns = df.columns.str.strip().str.lower().str.replace('-', '').str.replace(' ', '').str.replace('_', '')
 
-# Sütun isimlerini yazdırın (kontrol amaçlı)
-print("Sütun İsimleri:", df.columns.tolist())
-
 # Her bir e-posta adresine e-posta gönderin
 for index, satir in df.iterrows():
     satir = satir.fillna('')  # Eksik değerleri boş string ile doldurun
@@ -42,7 +42,7 @@ for index, satir in df.iterrows():
     mesaj = MIMEMultipart('mixed')
     mesaj['From'] = kullanici_adi
     mesaj['To'] = alici_eposta
-    mesaj['Subject'] = 'Konu Başlığı'
+    mesaj['Subject'] = konu_basligi  # Statik konu başlığı kullanılır
 
     # Kişiselleştirilmiş e-posta gövdesi
     eposta_govdesi = eposta_sablonu.safe_substitute(**satir.to_dict())
@@ -51,7 +51,7 @@ for index, satir in df.iterrows():
     mesaj_alani = MIMEText(eposta_govdesi, 'html', 'utf-8')
     mesaj.attach(mesaj_alani)
 
-    # **PDF ekini ekleyin**
+    # PDF ekini ekleyin
     pdf_dosyasi = os.path.join(script_dizini, 'dokuman.pdf')
     with open(pdf_dosyasi, 'rb') as dosya:
         mime_pdf = MIMEApplication(dosya.read(), _subtype='pdf')
