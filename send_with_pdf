@@ -1,0 +1,93 @@
+import pandas as pd
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+import os
+import configparser
+
+# Yapılandırma dosyasını okuyun
+config = configparser.ConfigParser()
+config.read('config.ini')
+
+# SMTP sunucu ayarları
+smtp_sunucu = config.get('SMTP', 'smtp_sunucu')
+smtp_port = config.getint('SMTP', 'smtp_port')
+kullanici_adi = config.get('SMTP', 'kullanici_adi')
+sifre = config.get('SMTP', 'sifre')
+
+# Gönderenin bilgileri
+gonderen_adi = config.get('GONDEREN', 'gonderen_adi')
+gonderen_tel = config.get('GONDEREN', 'gonderen_tel')
+gonderen_web = config.get('GONDEREN', 'gonderen_web')
+gonderen_eposta = config.get('GONDEREN', 'gonderen_eposta')
+
+# Konu başlığı
+konu_basligi = config.get('EPOSTA', 'konu_basligi')
+
+# E-posta gövdesi (burada düzenleyebilirsiniz)
+eposta_govdesi = """
+Değerli İş Ortağımız,
+
+...
+
+
+Hemen İletişime Geçin!
+Daha fazla bilgi almak veya hizmetimizi değerlendirmek için bizimle iletişime geçin. Profesyonel ekibimiz, ihtiyaçlarınıza özel çözümler sunmaya hazır.
+
+📞 Telefon: {gonderen_tel}
+📧 E-posta: {gonderen_eposta}
+🌐 Web Sitemiz: {gonderen_web}
+
+Sağlıklı günler dileriz,
+
+{gonderen_adi}
+"""
+
+# Excel dosyasından e-posta adreslerini ve diğer bilgileri okuyun
+excel_dosyasi = os.path.join(os.getcwd(), 'eposta_listesi.xlsx')
+df = pd.read_excel(excel_dosyasi)
+
+# Sütun isimlerini temizleyin
+df.columns = df.columns.str.strip().str.lower().str.replace('-', '').str.replace(' ', '').str.replace('_', '')
+
+# Her bir e-posta adresine e-posta gönderin
+for index, satir in df.iterrows():
+    satir = satir.fillna('')  # Eksik değerleri boş string ile doldurun
+    alici_eposta = satir['eposta']
+
+    # E-posta mesajını oluşturun
+    mesaj = MIMEMultipart()
+    mesaj['From'] = f"{gonderen_adi} <{kullanici_adi}>"
+    mesaj['To'] = alici_eposta
+    mesaj['Subject'] = konu_basligi
+
+    # Kişiselleştirilmiş e-posta gövdesi
+    eposta_govdesi_kisisel = eposta_govdesi.format(
+        **satir.to_dict(),
+        gonderen_adi=gonderen_adi,
+        gonderen_tel=gonderen_tel,
+        gonderen_eposta=gonderen_eposta,
+        gonderen_web=gonderen_web
+    )
+
+    # E-posta gövdesini ekleyin
+    mesaj.attach(MIMEText(eposta_govdesi_kisisel, 'plain', 'utf-8'))
+
+    # PDF ekini ekleyin
+    pdf_dosyasi = os.path.join(os.getcwd(), 'Sıcaklık Haritalama.pdf')
+    with open(pdf_dosyasi, 'rb') as dosya:
+        mime_pdf = MIMEApplication(dosya.read(), _subtype='pdf')
+        mime_pdf.add_header('Content-Disposition', 'attachment', filename=os.path.basename(pdf_dosyasi))
+        mesaj.attach(mime_pdf)
+
+    # E-postayı gönderin
+    try:
+        sunucu = smtplib.SMTP(smtp_sunucu, smtp_port)
+        sunucu.starttls()
+        sunucu.login(kullanici_adi, sifre)
+        sunucu.sendmail(kullanici_adi, alici_eposta, mesaj.as_string())
+        sunucu.quit()
+        print(f"{alici_eposta} adresine e-posta gönderildi.")
+    except Exception as e:
+        print(f"{alici_eposta} adresine e-posta gönderilemedi. Hata: {str(e)}")
